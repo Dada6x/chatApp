@@ -18,7 +18,7 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
               name={focused ? "chatbubble" : "chatbubble-outline"}
-              color={color}
+              color={"#AC97D8"}
               size={size}
             />
           ),
@@ -32,7 +32,7 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
               name={focused ? "people" : "people-outline"}
-              color={color}
+              color={"#AC97D8"}
               size={size}
             />
           ),
@@ -47,7 +47,7 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
               name={focused ? "person" : "person-outline"}
-              color={color}
+              color={"#AC97D8"}
               size={size}
             />
           ),

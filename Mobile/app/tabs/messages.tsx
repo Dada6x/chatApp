@@ -34,7 +34,7 @@ type User = {
   createdAt?: string;
 };
 
-const WHEREBY_ROOM_URL = "https://whereby.com/bytesroom"; 
+const WHEREBY_ROOM_URL = "https://whereby.com/bytesroom";
 const WHEREBY_ROOM_PARAMS = "?needancestor&skipMediaPermissionPrompt";
 
 type Conversation = {
