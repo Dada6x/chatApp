@@ -18,11 +18,69 @@ import {
 import { io, Socket } from "socket.io-client";
 import * as ImagePicker from "expo-image-picker";
 import { WebView } from "react-native-webview";
-// import { Camera } from "expo-camera";
-// import { Audio } from "expo-av";
-// import { Alert } from "react-native";
+import { defaultTheme } from "@flyerhq/react-native-chat-ui";
 
 const API_URL = ENDPOINTS.PRIVATE_CONVERSATIONS;
+const PRIMARY_COLOR = "#AC97D8";
+
+// 💫 Random avatar pool
+const AVATARS = [
+  {
+    id: 1,
+    src: require("../../assets/images/luffy.jpg"),
+    bg: "#efc119ff",
+  },
+  {
+    id: 2,
+    src: require("../../assets/images/za.jpg"),
+    bg: "#efc119ff",
+  },
+  {
+    id: 3,
+    src: require("../../assets/images/tom.jpg"),
+    bg: "#efc119ff",
+  },
+  {
+    id: 4,
+    src: require("../../assets/images/sar.jpg"),
+    bg: "#efc119ff",
+  },
+  {
+    id: 5,
+    src: require("../../assets/images/messi.jpg"),
+    bg: "#efc119ff",
+  },
+  {
+    id: 6,
+    src: require("../../assets/images/ronaldo.jpg"),
+    bg: "#efc119ff",
+  },
+  {
+    id: 7,
+    src: require("../../assets/images/ben.jpg"),
+    bg: "#efc119ff",
+  },
+  {
+    id: 8,
+    src: require("../../assets/images/dog.jpg"),
+    bg: "#efc119ff",
+  },
+];
+
+// 🔐 Deterministic "random" avatar per user
+const getRandomAvatar = (userId: string | undefined | null) => {
+  if (!userId || AVATARS.length === 0) {
+    return AVATARS[0];
+  }
+
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) {
+    hash = userId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+
+  const index = Math.abs(hash) % AVATARS.length;
+  return AVATARS[index];
+};
 
 type User = {
   _id?: string;
@@ -345,8 +403,6 @@ const MessagesPage = () => {
           },
         }
       );
-
-      // Don't call setMessages here -> socket 'private:new-message' will add it
     } catch (err: any) {
       console.log(
         "Error picking/sending image",
@@ -380,9 +436,14 @@ const MessagesPage = () => {
 
   if (loading) {
     return (
-      <View className="flex-1 items-center justify-center bg-white">
-        <ActivityIndicator />
-        <Text className="mt-3 text-gray-600">Loading conversations...</Text>
+      <View
+        className="flex-1 items-center justify-center"
+        style={{ backgroundColor: "#F5F3FF" }}
+      >
+        <ActivityIndicator color={PRIMARY_COLOR} />
+        <Text className="mt-3 text-gray-600 font-medium">
+          Loading your conversations...
+        </Text>
       </View>
     );
   }
@@ -395,32 +456,56 @@ const MessagesPage = () => {
     };
 
     return (
-      <View className="flex-1 bg-white">
-        <TouchableOpacity
-          onPress={() => setSelectedConversationSafe(null)}
-          className="p-4 bg-gray-100 flex-row items-center justify-between"
+      <View className="flex-1" style={{ backgroundColor: "#F5F3FF" }}>
+        {/* Top bar */}
+        <View
+          className="px-4 pt-10 pb-3 flex-row items-center justify-between"
+          style={{
+            backgroundColor: "#DBFBF1",
+            shadowColor: "#000",
+            shadowOpacity: 0.15,
+            shadowRadius: 10,
+            elevation: 5,
+          }}
         >
-          <Text className="text-blue-500">← Back to conversations</Text>
+          <TouchableOpacity
+            onPress={() => setSelectedConversationSafe(null)}
+            className="flex-row items-center"
+          >
+            <Text className="text-black text-lg mr-1">←</Text>
+            <View>
+              <Text className="text-black font-semibold text-sm">
+                Back to conversations
+              </Text>
+              <Text className="text-black/70 text-[11px]">
+                Chatting with {selectedConversation.user.name}
+              </Text>
+            </View>
+          </TouchableOpacity>
 
           {/* Video Call button */}
           <TouchableOpacity
             onPress={startCall}
-            className="px-3 py-1 rounded-full bg-green-500"
+            className="px-3 py-1 rounded-full flex-row items-center"
+            style={{ backgroundColor: "rgba(255,255,255,0.16)" }}
           >
-            <Text className="text-white text-xs">Video Call</Text>
+            <Text className="text-xs text-black mr-1">●</Text>
+            <Text className="text-black text-[15px] font-semibold">
+              📽️ Video Call
+            </Text>
           </TouchableOpacity>
-        </TouchableOpacity>
+        </View>
 
         {/* Video call overlay via WebView */}
         {videoRoom && (
           <View className="absolute inset-0 bg-black z-20">
             <View className="flex-row justify-between items-center px-4 py-3 bg-black/80">
-              <Text className="text-white font-semibold">Video call</Text>
+              <Text className="text-black font-semibold">Video call</Text>
               <TouchableOpacity
                 onPress={closeCall}
                 className="px-3 py-1 rounded-full bg-red-600"
               >
-                <Text className="text-white text-xs">Close</Text>
+                <Text className="text-black text-[15px]">End Call</Text>
               </TouchableOpacity>
             </View>
 
@@ -433,37 +518,94 @@ const MessagesPage = () => {
               allowsFullscreenVideo
               allowsInlineMediaPlayback
               mediaPlaybackRequiresUserAction={false}
-              mediaCapturePermissionGrantType="grant" // let WebView grant getUserMedia
+              mediaCapturePermissionGrantType="grant"
             />
           </View>
         )}
 
-        <Chat
-          messages={[...messages].reverse()} // newest first for Chat UI
-          onSendPress={handleSendPress}
-          user={chatUser}
-          showUserAvatars
-          showUserNames
-          sendButtonVisibilityMode="always"
-          onAttachmentPress={handleAttachmentPress}
-        />
+        <View className="flex-1">
+          <Chat
+            messages={[...messages].reverse()}
+            onSendPress={handleSendPress}
+            user={chatUser}
+            showUserNames
+            sendButtonVisibilityMode="always"
+            onAttachmentPress={handleAttachmentPress}
+            theme={{
+              ...defaultTheme,
+              colors: {
+                ...defaultTheme.colors,
+                inputBackground: "#AC97D8", // ← your custom color
+                primary: "#AC97D8", // ← your bubble color
+              },
+            }}
+          />
+        </View>
       </View>
     );
   }
 
+  // ========= CONVERSATION LIST =========
   return (
-    <View className="flex-1 bg-white px-4 pt-12">
-      <FlatList
-        data={conversations}
-        keyExtractor={(item) => (item.user._id || item.user.id) as string}
-        ItemSeparatorComponent={() => <View className="h-3" />}
-        contentContainerStyle={{ paddingBottom: 24 }}
-        renderItem={({ item }) => (
-          <TouchableOpacity onPress={() => handleSelectConversation(item)}>
-            <ConversationCard conversation={item} />
-          </TouchableOpacity>
-        )}
-      />
+    <View className="flex-1" style={{ backgroundColor: "#F5F3FF" }}>
+      {/* Header */}
+      <View className="px-5 pt-12 pb-4">
+        <Text className="text-xs font-semibold tracking-[2px] text-gray-500">
+          MESSAGES
+        </Text>
+        <Text className="text-2xl font-bold text-gray-900 mt-1">Inbox</Text>
+        <Text className="text-xs text-gray-500 mt-1">
+          Chat privately with your Friends &amp; Couches.
+        </Text>
+      </View>
+
+      {/* Rounded top container for list */}
+      <View
+        className="flex-1 px-4 pt-4"
+        style={{
+          borderTopLeftRadius: 24,
+          borderTopRightRadius: 24,
+          backgroundColor: "#FFFFFF",
+          shadowColor: "#000",
+          shadowOpacity: 0.05,
+          shadowRadius: 10,
+          elevation: 4,
+        }}
+      >
+        <FlatList
+          data={conversations}
+          keyExtractor={(item) => (item.user._id || item.user.id) as string}
+          ItemSeparatorComponent={() => <View className="h-3" />}
+          contentContainerStyle={{ paddingBottom: 24, paddingTop: 4  }}
+          ListEmptyComponent={() => (
+            <View className="mt-16  items-center justify-center">
+              <View
+                className="w-16 h-16  rounded-full items-center justify-center mb-3"
+                style={{ backgroundColor: "#red" }}
+              >
+                <Text
+                  className="text-3xl font-semibold"
+                  style={{ color: PRIMARY_COLOR }}
+                >
+                  💬
+                </Text>
+              </View>
+              <Text className="text-gray-800 font-semibold">
+                No conversations yet
+              </Text>
+              <Text className="text-xs text-gray-500 mt-1 text-center px-6">
+                When you start chatting with someone, your conversations will
+                appear here.
+              </Text>
+            </View>
+          )}
+          renderItem={({ item }) => (
+            <TouchableOpacity onPress={() => handleSelectConversation(item)}>
+              <ConversationCard conversation={item} />
+            </TouchableOpacity>
+          )}
+        />
+      </View>
     </View>
   );
 };
@@ -471,12 +613,35 @@ const MessagesPage = () => {
 const ConversationCard = ({ conversation }: { conversation: Conversation }) => {
   const user = conversation.user;
   const lastMessage = conversation.lastMessage;
-  const firstLetter = user.name?.[0]?.toUpperCase() || "?";
+
+  const userId = user._id || user.id || "";
+  const randomAvatar = getRandomAvatar(userId);
+
+  const lastText =
+    lastMessage?.text ||
+    (lastMessage?.imageBase64 ? "📷 Photo" : "Start a conversation");
+
+  const dateLabel = lastMessage?.createdAt
+    ? new Date(lastMessage.createdAt).toLocaleDateString()
+    : "New";
 
   return (
-    <View className="flex-row items-center rounded-2xl bg-white border border-gray-200 px-3 py-3 shadow-sm">
+    <View
+      className="flex-row items-center px-3 py-3 mb-1"
+      style={{
+        borderRadius: 18,
+        backgroundColor: "#FFFFFF",
+        shadowColor: "#000",
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+        elevation: 3,
+      }}
+    >
       {/* Avatar */}
-      <View className="w-12 h-12 rounded-full overflow-hidden bg-indigo-100 items-center justify-center mr-3">
+      <View
+        className="w-12 h-12 rounded-full overflow-hidden items-center justify-center mr-3"
+        style={{ backgroundColor: randomAvatar.bg || "#F0E9FF" }}
+      >
         {user.avatar ? (
           <Image
             source={{ uri: user.avatar }}
@@ -484,9 +649,11 @@ const ConversationCard = ({ conversation }: { conversation: Conversation }) => {
             resizeMode="cover"
           />
         ) : (
-          <Text className="text-lg font-semibold text-indigo-600">
-            {firstLetter}
-          </Text>
+          <Image
+            source={randomAvatar.src}
+            className="w-12 h-12"
+            resizeMode="cover"
+          />
         )}
       </View>
 
@@ -499,12 +666,21 @@ const ConversationCard = ({ conversation }: { conversation: Conversation }) => {
           >
             {user.name}
           </Text>
+          <View
+            className="px-2 py-0.5 rounded-full ml-2"
+            style={{ backgroundColor: "#F5F0FF" }}
+          >
+            <Text
+              className="text-[10px] font-medium"
+              style={{ color: PRIMARY_COLOR }}
+            >
+              {dateLabel}
+            </Text>
+          </View>
         </View>
 
-        <Text className="text-[10px] text-gray-400 mt-1">
-          {lastMessage
-            ? new Date(lastMessage.createdAt || "").toLocaleDateString()
-            : "No messages"}
+        <Text className="text-[12px] text-gray-500 mt-1" numberOfLines={1}>
+          {lastText}
         </Text>
       </View>
     </View>
@@ -516,12 +692,26 @@ const UserCard = ({ user }: { user: User }) => {
     ? new Date(user.createdAt).toLocaleDateString()
     : null;
 
-  const firstLetter = user.name?.[0]?.toUpperCase() || "?";
+  const userId = user._id || user.id || "";
+  const randomAvatar = getRandomAvatar(userId);
 
   return (
-    <View className="flex-row items-center rounded-2xl bg-white border border-gray-200 px-3 py-3 shadow-sm">
+    <View
+      className="flex-row items-center px-3 py-3 mb-1"
+      style={{
+        borderRadius: 18,
+        backgroundColor: "#FFFFFF",
+        shadowColor: "#000",
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+        elevation: 3,
+      }}
+    >
       {/* Avatar */}
-      <View className="w-12 h-12 rounded-full overflow-hidden bg-indigo-100 items-center justify-center mr-3">
+      <View
+        className="w-12 h-12 rounded-full overflow-hidden items-center justify-center mr-3"
+        style={{ backgroundColor: randomAvatar.bg || "#F0E9FF" }}
+      >
         {user.avatar ? (
           <Image
             source={{ uri: user.avatar }}
@@ -529,9 +719,11 @@ const UserCard = ({ user }: { user: User }) => {
             resizeMode="cover"
           />
         ) : (
-          <Text className="text-lg font-semibold text-indigo-600">
-            {firstLetter}
-          </Text>
+          <Image
+            source={randomAvatar.src}
+            className="w-12 h-12"
+            resizeMode="cover"
+          />
         )}
       </View>
 

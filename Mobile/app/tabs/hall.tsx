@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { KeyboardAvoidingView, Platform, View } from "react-native";
+import { KeyboardAvoidingView, Platform, View, Image } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Chat, MessageType, User } from "@flyerhq/react-native-chat-ui";
 import axios from "axios";
@@ -7,19 +7,84 @@ import { ENDPOINTS, SOCKET_URL } from "../api";
 import { io, Socket } from "socket.io-client";
 import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "../context/AuthContext";
+import { defaultTheme } from "@flyerhq/react-native-chat-ui";
 
 const HALL_URL = ENDPOINTS.HALL_MESSAGES;
 const ME_URL = ENDPOINTS.ME;
 
+// 👇 Your avatars
+const AVATARS = [
+  {
+    id: 1,
+    src: require("../../assets/images/luffy.jpg"),
+    bg: "#efc119ff",
+  },
+  {
+    id: 2,
+    src: require("../../assets/images/za.jpg"),
+    bg: "#efc119ff",
+  },
+  {
+    id: 3,
+    src: require("../../assets/images/tom.jpg"),
+    bg: "#efc119ff",
+  },
+  {
+    id: 4,
+    src: require("../../assets/images/sar.jpg"),
+    bg: "#efc119ff",
+  },
+  {
+    id: 5,
+    src: require("../../assets/images/messi.jpg"),
+    bg: "#efc119ff",
+  },
+  {
+    id: 6,
+    src: require("../../assets/images/ronaldo.jpg"),
+    bg: "#efc119ff",
+  },
+  {
+    id: 7,
+    src: require("../../assets/images/ben.jpg"),
+    bg: "#efc119ff",
+  },
+  {
+    id: 8,
+    src: require("../../assets/images/dog.jpg"),
+    bg: "#efc119ff",
+  },
+];
+
+// 👇 Cache so each user keeps the same random avatar
+const avatarCache: Record<string, string> = {};
+
+const getAvatarForUser = (userId: string) => {
+  if (!userId) userId = "unknown";
+
+  if (!avatarCache[userId]) {
+    const randomAvatar =
+      AVATARS[Math.floor(Math.random() * AVATARS.length)];
+    // Convert require(...) to a URI string
+    const uri = Image.resolveAssetSource(randomAvatar.src).uri;
+    avatarCache[userId] = uri;
+  }
+
+  return avatarCache[userId];
+};
+
 // 👇 Helper: turn API message (with optional imageBase64) into Chat message
 const mapApiMessageToChat = (m: any): MessageType.Any => {
+  const ownerId = m.owner_id?._id || "unknown";
+
   const base = {
     id: m._id,
     createdAt: new Date(m.createdAt).getTime(),
     author: {
-      id: m.owner_id?._id || "unknown",
+      id: ownerId,
       firstName: m.owner_id?.name,
-      imageUrl: m.owner_id?.avatar || undefined,
+      // use random avatar based on user id
+      imageUrl: getAvatarForUser(ownerId),
     },
   };
 
@@ -75,10 +140,13 @@ const App = () => {
           currentUserData = meRes.data.user;
         }
 
+        const chatUserId = currentUserData._id || currentUserData.id;
+
         const chatUser: User = {
-          id: currentUserData._id || currentUserData.id, // must match owner_id._id from messages
+          id: chatUserId, // must match owner_id._id from messages
           firstName: currentUserData.name,
-          imageUrl: currentUserData.avatar || undefined,
+          // random avatar for current user as well
+          imageUrl: getAvatarForUser(chatUserId),
         };
         setCurrentUser(chatUser);
 
@@ -224,6 +292,14 @@ const App = () => {
               user={currentUser}
               showUserNames
               sendButtonVisibilityMode="always"
+              theme={{
+                ...defaultTheme,
+                colors: {
+                  ...defaultTheme.colors,
+                  inputBackground: "#AC97D8", // ← your custom color
+                  primary: "#AC97D8", // ← optional (your message bubble)
+                },
+              }}
             />
           )}
         </View>

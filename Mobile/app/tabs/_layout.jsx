@@ -15,6 +15,7 @@ export default function TabsLayout() {
         options={{
           headerShown: true,
           title: "Messages",
+          
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
               name={focused ? "chatbubble" : "chatbubble-outline"}
