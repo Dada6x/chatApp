@@ -17,6 +17,10 @@ import {
 } from "@flyerhq/react-native-chat-ui";
 import { io, Socket } from "socket.io-client";
 import * as ImagePicker from "expo-image-picker";
+import { WebView } from "react-native-webview";
+// import { Camera } from "expo-camera";
+// import { Audio } from "expo-av";
+// import { Alert } from "react-native";
 
 const API_URL = ENDPOINTS.PRIVATE_CONVERSATIONS;
 
@@ -29,6 +33,9 @@ type User = {
   avatar?: string | null;
   createdAt?: string;
 };
+
+const WHEREBY_ROOM_URL = "https://whereby.com/bytesroom"; 
+const WHEREBY_ROOM_PARAMS = "?needancestor&skipMediaPermissionPrompt";
 
 type Conversation = {
   user: User;
@@ -103,6 +110,9 @@ const MessagesPage = () => {
   const [messages, setMessages] = useState<MessageType.Any[]>([]);
   const socketRef = useRef<Socket | null>(null);
   const selectedConversationRef = useRef<Conversation | null>(null);
+
+  // 🎥 Video call state (WebView + Jitsi)
+  const [videoRoom, setVideoRoom] = useState<string | null>(null);
 
   // Keep ref in sync with state so socket handler sees latest
   const setSelectedConversationSafe = (conv: Conversation | null) => {
@@ -345,6 +355,29 @@ const MessagesPage = () => {
     }
   };
 
+  // ========== VIDEO CALL (WebView + Jitsi) ==========
+
+  const buildRoomName = (a: string, b: string) => {
+    // stable room name for both users, order-independent
+    return [a, b].sort().join("_");
+  };
+
+  const startCall = () => {
+    if (!selectedConversation || !myId) return;
+
+    const peerId = (selectedConversation.user._id ||
+      selectedConversation.user.id) as string;
+
+    const room = buildRoomName(myId, peerId);
+    setVideoRoom(room);
+  };
+
+  const closeCall = () => {
+    setVideoRoom(null);
+  };
+
+  // ========= RENDERING =========
+
   if (loading) {
     return (
       <View className="flex-1 items-center justify-center bg-white">
@@ -365,10 +398,45 @@ const MessagesPage = () => {
       <View className="flex-1 bg-white">
         <TouchableOpacity
           onPress={() => setSelectedConversationSafe(null)}
-          className="p-4 bg-gray-100"
+          className="p-4 bg-gray-100 flex-row items-center justify-between"
         >
           <Text className="text-blue-500">← Back to conversations</Text>
+
+          {/* Video Call button */}
+          <TouchableOpacity
+            onPress={startCall}
+            className="px-3 py-1 rounded-full bg-green-500"
+          >
+            <Text className="text-white text-xs">Video Call</Text>
+          </TouchableOpacity>
         </TouchableOpacity>
+
+        {/* Video call overlay via WebView */}
+        {videoRoom && (
+          <View className="absolute inset-0 bg-black z-20">
+            <View className="flex-row justify-between items-center px-4 py-3 bg-black/80">
+              <Text className="text-white font-semibold">Video call</Text>
+              <TouchableOpacity
+                onPress={closeCall}
+                className="px-3 py-1 rounded-full bg-red-600"
+              >
+                <Text className="text-white text-xs">Close</Text>
+              </TouchableOpacity>
+            </View>
+
+            <WebView
+              startInLoadingState
+              source={{ uri: WHEREBY_ROOM_URL + WHEREBY_ROOM_PARAMS }}
+              style={{ flex: 1 }}
+              javaScriptEnabled
+              domStorageEnabled
+              allowsFullscreenVideo
+              allowsInlineMediaPlayback
+              mediaPlaybackRequiresUserAction={false}
+              mediaCapturePermissionGrantType="grant" // let WebView grant getUserMedia
+            />
+          </View>
+        )}
 
         <Chat
           messages={[...messages].reverse()} // newest first for Chat UI
@@ -377,7 +445,7 @@ const MessagesPage = () => {
           showUserAvatars
           showUserNames
           sendButtonVisibilityMode="always"
-          onAttachmentPress={handleAttachmentPress} // 👈 images enabled
+          onAttachmentPress={handleAttachmentPress}
         />
       </View>
     );

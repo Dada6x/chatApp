@@ -28,13 +28,13 @@ function initSocket(server) {
     // Handle private message events
     socket.on("private:message", (data) => {
       const { receiverId, message } = data;
-      
+
       // Emit to receiver's room if they're online
       socket.to(`user:${receiverId}`).emit("private:new-message", {
         message,
-        participants: [socket.userId, receiverId]
+        participants: [socket.userId, receiverId],
       });
-      
+
       console.log(`💬 Private message from ${socket.userId} to ${receiverId}`);
     });
 
@@ -43,13 +43,61 @@ function initSocket(server) {
       const { receiverId, isTyping } = data;
       socket.to(`user:${receiverId}`).emit("private:typing", {
         senderId: socket.userId,
-        isTyping
+        isTyping,
       });
+    });
+
+    // ===============================
+    //        VIDEO CALL SIGNALING
+    // ===============================
+
+    // Caller -> send offer to callee
+    socket.on("call:offer", ({ toUserId, sdp }) => {
+      if (!socket.userId || !toUserId || !sdp) return;
+
+      console.log(`📞 Call offer from ${socket.userId} to ${toUserId}`);
+
+      // Send to callee's user room
+      socket.to(`user:${toUserId}`).emit("call:incoming", {
+        fromUserId: socket.userId,
+        sdp,
+      });
+    });
+
+    // Callee -> send answer back to caller
+    socket.on("call:answer", ({ toUserId, sdp }) => {
+      if (!socket.userId || !toUserId || !sdp) return;
+
+      console.log(`✅ Call answer from ${socket.userId} to ${toUserId}`);
+
+      socket.to(`user:${toUserId}`).emit("call:accepted", {
+        fromUserId: socket.userId,
+        sdp,
+      });
+    });
+
+    // Both peers -> exchange ICE candidates
+    socket.on("call:candidate", ({ toUserId, candidate }) => {
+      if (!socket.userId || !toUserId || !candidate) return;
+
+      // Just forward candidate to other user
+      socket.to(`user:${toUserId}`).emit("call:candidate", {
+        candidate,
+      });
+    });
+
+    // Either peer -> end call
+    socket.on("call:end", ({ toUserId }) => {
+      if (!socket.userId || !toUserId) return;
+
+      console.log(`📴 Call ended by ${socket.userId}, notifying ${toUserId}`);
+
+      socket.to(`user:${toUserId}`).emit("call:ended");
     });
 
     socket.on("disconnect", () => {
       console.log("❌ Socket disconnected:", socket.id);
-      
+
       // Remove user from connected users map
       if (socket.userId) {
         connectedUsers.delete(socket.userId);

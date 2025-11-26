@@ -2,7 +2,7 @@
 import axios from 'axios';
 
 // Your machine IP + backend port
-export const API_BASE = "http://192.168.0.109:3000";
+export const API_BASE = "http://192.168.0.104:3000";
 
 export const ENDPOINTS = {
   ME: `${API_BASE}/api/me`,
