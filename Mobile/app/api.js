@@ -1,5 +1,5 @@
 // src/api.js
-import axios from 'axios';
+import axios from "axios";
 
 // Your machine IP + backend port
 export const API_BASE = "http://192.168.0.104:3000";
@@ -10,7 +10,7 @@ export const ENDPOINTS = {
   LOGIN: `${API_BASE}/api/auth/login`,
   SIGNUP: `${API_BASE}/api/auth/signup`,
   USERS: `${API_BASE}/api/users`,
-  CONTACTS: `${API_BASE}/users/contacts`,
+  CONTACTS: `${API_BASE}/api/users/contacts`,
   PRIVATE_CONVERSATIONS: `${API_BASE}/api/messages/private/conversations`,
   PRIVATE_MESSAGES: (userId) => `${API_BASE}/api/messages/private/${userId}`,
   SEND_PRIVATE_MESSAGE: `${API_BASE}/api/messages/private`,
@@ -34,7 +34,7 @@ export const authAPI = {
     } catch (error) {
       return {
         success: false,
-        error: error.response?.data?.message || 'Login failed',
+        error: error.response?.data?.message || "Login failed",
       };
     }
   },
@@ -55,7 +55,7 @@ export const authAPI = {
     } catch (error) {
       return {
         success: false,
-        error: error.response?.data?.message || 'Signup failed',
+        error: error.response?.data?.message || "Signup failed",
       };
     }
   },
@@ -72,7 +72,7 @@ export const authAPI = {
     } catch (error) {
       return {
         success: false,
-        error: error.response?.data?.message || 'Failed to get user data',
+        error: error.response?.data?.message || "Failed to get user data",
       };
     }
   },

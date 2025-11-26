@@ -20,10 +20,8 @@ import * as ImagePicker from "expo-image-picker";
 import { WebView } from "react-native-webview";
 import { defaultTheme } from "@flyerhq/react-native-chat-ui";
 
-const API_URL = ENDPOINTS.PRIVATE_CONVERSATIONS;
 const PRIMARY_COLOR = "#AC97D8";
 
-// 💫 Random avatar pool
 const AVATARS = [
   {
     id: 1,
@@ -67,7 +65,7 @@ const AVATARS = [
   },
 ];
 
-// 🔐 Deterministic "random" avatar per user
+// Deterministic "random" avatar per user
 const getRandomAvatar = (userId: string | undefined | null) => {
   if (!userId || AVATARS.length === 0) {
     return AVATARS[0];
@@ -107,7 +105,7 @@ type Conversation = {
   };
 };
 
-// 👉 Helper to map private API message → Chat message (text or image)
+// Map backend message → Chat UI message
 const mapPrivateApiMessageToChat = (
   msg: any,
   myId: string,
@@ -131,7 +129,6 @@ const mapPrivateApiMessageToChat = (
         },
   };
 
-  // If backend sends imageBase64 -> image message
   if (msg.imageBase64) {
     const imageMessage: MessageType.Image = {
       ...base,
@@ -145,7 +142,6 @@ const mapPrivateApiMessageToChat = (
     return imageMessage;
   }
 
-  // Otherwise text message
   const textMessage: MessageType.Text = {
     ...base,
     type: "text",
@@ -158,7 +154,7 @@ const mapPrivateApiMessageToChat = (
 const MessagesPage = () => {
   const { token, user: authUser } = useAuth();
 
-  // 👇 Canonical ID used everywhere (must match backend owner_id._id)
+  // Canonical ID used everywhere (must match backend owner_id._id)
   const myId = authUser?._id || (authUser as any)?.id;
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -169,7 +165,7 @@ const MessagesPage = () => {
   const socketRef = useRef<Socket | null>(null);
   const selectedConversationRef = useRef<Conversation | null>(null);
 
-  // 🎥 Video call state (WebView + Jitsi)
+  // Video call state (WebView)
   const [videoRoom, setVideoRoom] = useState<string | null>(null);
 
   // Keep ref in sync with state so socket handler sees latest
@@ -178,27 +174,64 @@ const MessagesPage = () => {
     setSelectedConversation(conv);
   };
 
-  // Fetch conversations
+  // Ensure a conversation exists for a given user (used for messages from non-contacts)
+  const ensureConversationForUser = (user: User) => {
+    setConversations((prev) => {
+      const exists = prev.some((c) => c.user._id === user._id);
+      if (exists) return prev;
+      return [...prev, { user }];
+    });
+  };
+
+  // Update lastMessage and sort conversations
+  const updateConversationLastMessage = (userId: string, lastMessage: any) => {
+    setConversations((prev) =>
+      prev
+        .map((conv) =>
+          conv.user._id === userId ? { ...conv, lastMessage } : conv
+        )
+        .sort(
+          (a, b) =>
+            new Date(b.lastMessage?.createdAt || 0).getTime() -
+            new Date(a.lastMessage?.createdAt || 0).getTime()
+        )
+    );
+  };
+
+  // Fetch contacts -> build conversations list
   useEffect(() => {
     if (!token || !myId) return;
 
-    const fetchConversations = async () => {
+    const fetchContacts = async () => {
       try {
-        const response = await axios.get(API_URL, {
+        const response = await axios.get(ENDPOINTS.CONTACTS, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
 
-        setConversations(response.data || []);
+        // response.data = { count, users: [...] }
+        const users: User[] = response.data.users || [];
+
+        // Optional: filter out myself
+        const filteredUsers = users.filter((u) => u._id !== myId);
+
+        const initialConversations: Conversation[] = filteredUsers.map(
+          (user) => ({
+            user,
+            // no lastMessage yet; will be filled by socket or sending messages
+          })
+        );
+
+        setConversations(initialConversations);
       } catch (err: any) {
-        console.log("Error fetching conversations", err?.response?.data || err);
+        console.log("Error fetching contacts", err?.response?.data || err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchConversations();
+    fetchContacts();
   }, [token, myId]);
 
   // Socket setup
@@ -221,18 +254,22 @@ const MessagesPage = () => {
 
       const isMine = message.owner_id?._id === myId;
 
-      // 🔒 Ignore my own text messages:
-      // I already add them optimistically in handleSendPress
+      // Ignore my own text messages; I add them optimistically
       if (isMine && message.text && !message.imageBase64) {
         return;
       }
 
-      // Determine conversation partner
-      const partnerId =
-        message.owner_id._id === myId
-          ? message.receiver_id._id
-          : message.owner_id._id;
+      // Determine partner user + id
+      const partnerIsReceiver = message.owner_id._id === myId;
+      const partnerUser: User = partnerIsReceiver
+        ? message.receiver_id
+        : message.owner_id;
+      const partnerId = partnerUser._id as string;
 
+      // Ensure partner is in conversations (in case not in contacts)
+      ensureConversationForUser(partnerUser);
+
+      // Update last message & sort list
       updateConversationLastMessage(partnerId, message);
 
       const currentConv = selectedConversationRef.current;
@@ -243,9 +280,13 @@ const MessagesPage = () => {
         (message.owner_id._id === currentConv.user._id ||
           message.receiver_id._id === currentConv.user._id)
       ) {
-        const chatMessage = mapPrivateApiMessageToChat(message, myId, authUser);
+        const chatMessage = mapPrivateApiMessageToChat(
+          message,
+          myId,
+          authUser
+        );
 
-        // ✅ De-duplicate by id to avoid duplicate keys / double render
+        // De-duplicate by id
         setMessages((prev) => {
           if (prev.some((m) => m.id === chatMessage.id)) {
             return prev;
@@ -263,20 +304,6 @@ const MessagesPage = () => {
       socket.disconnect();
     };
   }, [myId, authUser?.name, authUser?.avatar]);
-
-  const updateConversationLastMessage = (userId: string, lastMessage: any) => {
-    setConversations((prev) =>
-      prev
-        .map((conv) =>
-          conv.user._id === userId ? { ...conv, lastMessage } : conv
-        )
-        .sort(
-          (a, b) =>
-            new Date(b.lastMessage?.createdAt || 0).getTime() -
-            new Date(a.lastMessage?.createdAt || 0).getTime()
-        )
-    );
-  };
 
   const handleSelectConversation = async (conversation: Conversation) => {
     setSelectedConversationSafe(conversation);
@@ -315,15 +342,15 @@ const MessagesPage = () => {
         imageUrl: authUser.avatar ?? undefined,
       },
       createdAt: Date.now(),
-      id: optimisticId, // temp ID
+      id: optimisticId,
       text: message.text,
       type: "text",
     };
 
-    // Show immediately (only for text)
+    // Show immediately (text only)
     setMessages((prev) => [...prev, newMessage]);
 
-    // Update conversation last message
+    // Update conversation last message optimistically
     updateConversationLastMessage(selectedConversation.user._id as string, {
       text: message.text,
       createdAt: new Date().toISOString(),
@@ -348,7 +375,7 @@ const MessagesPage = () => {
         }
       );
 
-      // Replace temp ID with real ID (socket is ignored for my own text messages)
+      // Replace temp ID with real ID
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === optimisticId ? { ...msg, id: response.data._id } : msg
@@ -361,7 +388,7 @@ const MessagesPage = () => {
     }
   };
 
-  // 📸 Handle image attachment
+  // Handle image attachment
   const handleAttachmentPress = async () => {
     if (!selectedConversation || !token) return;
 
@@ -389,7 +416,6 @@ const MessagesPage = () => {
         return;
       }
 
-      // Send image to backend (no optimistic UI; socket will handle it)
       await axios.post(
         ENDPOINTS.SEND_PRIVATE_MESSAGE,
         {
@@ -411,7 +437,7 @@ const MessagesPage = () => {
     }
   };
 
-  // ========== VIDEO CALL (WebView + Jitsi) ==========
+  // ===== VIDEO CALL (WebView) =====
 
   const buildRoomName = (a: string, b: string) => {
     // stable room name for both users, order-independent
@@ -432,7 +458,7 @@ const MessagesPage = () => {
     setVideoRoom(null);
   };
 
-  // ========= RENDERING =========
+  // ===== RENDERING =====
 
   if (loading) {
     return (
@@ -500,12 +526,12 @@ const MessagesPage = () => {
         {videoRoom && (
           <View className="absolute inset-0 bg-black z-20">
             <View className="flex-row justify-between items-center px-4 py-3 bg-black/80">
-              <Text className="text-black font-semibold">Video call</Text>
+              <Text className="text-white font-semibold">Video call</Text>
               <TouchableOpacity
                 onPress={closeCall}
                 className="px-3 py-1 rounded-full bg-red-600"
               >
-                <Text className="text-black text-[15px]">End Call</Text>
+                <Text className="text-white text-[15px]">End Call</Text>
               </TouchableOpacity>
             </View>
 
@@ -535,8 +561,8 @@ const MessagesPage = () => {
               ...defaultTheme,
               colors: {
                 ...defaultTheme.colors,
-                inputBackground: "#AC97D8", // ← your custom color
-                primary: "#AC97D8", // ← your bubble color
+                inputBackground: PRIMARY_COLOR,
+                primary: PRIMARY_COLOR,
               },
             }}
           />
@@ -545,7 +571,7 @@ const MessagesPage = () => {
     );
   }
 
-  // ========= CONVERSATION LIST =========
+  // ===== CONVERSATION LIST (CONTACTS) =====
   return (
     <View className="flex-1" style={{ backgroundColor: "#F5F3FF" }}>
       {/* Header */}
@@ -555,7 +581,7 @@ const MessagesPage = () => {
         </Text>
         <Text className="text-2xl font-bold text-gray-900 mt-1">Inbox</Text>
         <Text className="text-xs text-gray-500 mt-1">
-          Chat privately with your Friends &amp; Couches.
+          Chat privately with your Friends &amp; Coaches.
         </Text>
       </View>
 
@@ -576,12 +602,12 @@ const MessagesPage = () => {
           data={conversations}
           keyExtractor={(item) => (item.user._id || item.user.id) as string}
           ItemSeparatorComponent={() => <View className="h-3" />}
-          contentContainerStyle={{ paddingBottom: 24, paddingTop: 4  }}
+          contentContainerStyle={{ paddingBottom: 24, paddingTop: 4 }}
           ListEmptyComponent={() => (
-            <View className="mt-16  items-center justify-center">
+            <View className="mt-16 items-center justify-center">
               <View
-                className="w-16 h-16  rounded-full items-center justify-center mb-3"
-                style={{ backgroundColor: "#red" }}
+                className="w-16 h-16 rounded-full items-center justify-center mb-3"
+                style={{ backgroundColor: "#F5F0FF" }}
               >
                 <Text
                   className="text-3xl font-semibold"
@@ -591,11 +617,11 @@ const MessagesPage = () => {
                 </Text>
               </View>
               <Text className="text-gray-800 font-semibold">
-                No conversations yet
+                No contacts yet
               </Text>
               <Text className="text-xs text-gray-500 mt-1 text-center px-6">
-                When you start chatting with someone, your conversations will
-                appear here.
+                When you add friends or coaches, they will appear here and you
+                can start chatting with them.
               </Text>
             </View>
           )}
@@ -682,73 +708,6 @@ const ConversationCard = ({ conversation }: { conversation: Conversation }) => {
         <Text className="text-[12px] text-gray-500 mt-1" numberOfLines={1}>
           {lastText}
         </Text>
-      </View>
-    </View>
-  );
-};
-
-const UserCard = ({ user }: { user: User }) => {
-  const createdDate = user.createdAt
-    ? new Date(user.createdAt).toLocaleDateString()
-    : null;
-
-  const userId = user._id || user.id || "";
-  const randomAvatar = getRandomAvatar(userId);
-
-  return (
-    <View
-      className="flex-row items-center px-3 py-3 mb-1"
-      style={{
-        borderRadius: 18,
-        backgroundColor: "#FFFFFF",
-        shadowColor: "#000",
-        shadowOpacity: 0.05,
-        shadowRadius: 6,
-        elevation: 3,
-      }}
-    >
-      {/* Avatar */}
-      <View
-        className="w-12 h-12 rounded-full overflow-hidden items-center justify-center mr-3"
-        style={{ backgroundColor: randomAvatar.bg || "#F0E9FF" }}
-      >
-        {user.avatar ? (
-          <Image
-            source={{ uri: user.avatar }}
-            className="w-12 h-12"
-            resizeMode="cover"
-          />
-        ) : (
-          <Image
-            source={randomAvatar.src}
-            className="w-12 h-12"
-            resizeMode="cover"
-          />
-        )}
-      </View>
-
-      {/* Info */}
-      <View className="flex-1">
-        <View className="flex-row items-center justify-between">
-          <Text
-            className="text-base font-semibold text-gray-900"
-            numberOfLines={1}
-          >
-            {user.name}
-          </Text>
-        </View>
-
-        {user.email && (
-          <Text className="text-xs text-gray-500 mt-0.5" numberOfLines={1}>
-            {user.email}
-          </Text>
-        )}
-
-        {createdDate && (
-          <Text className="text-[10px] text-gray-400 mt-1">
-            Joined {createdDate}
-          </Text>
-        )}
       </View>
     </View>
   );

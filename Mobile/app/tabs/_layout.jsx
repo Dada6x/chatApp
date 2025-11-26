@@ -15,7 +15,11 @@ export default function TabsLayout() {
         options={{
           headerShown: true,
           title: "Messages",
-          
+          headerStyle: {
+            backgroundColor: "#DBFBF1",
+            elevation: 0,
+          },
+
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
               name={focused ? "chatbubble" : "chatbubble-outline"}
@@ -43,7 +47,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          headerShown: true,
+          headerShown: false,
           title: "Profile",
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
