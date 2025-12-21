@@ -49,11 +49,6 @@ const AVATARS = [
     bg: "#efc119ff",
   },
   {
-    id: 6,
-    src: require("../../assets/images/ronaldo.jpg"),
-    bg: "#efc119ff",
-  },
-  {
     id: 7,
     src: require("../../assets/images/ben.jpg"),
     bg: "#efc119ff",
@@ -61,6 +56,11 @@ const AVATARS = [
   {
     id: 8,
     src: require("../../assets/images/dog.jpg"),
+    bg: "#efc119ff",
+  },
+  {
+    id: 6,
+    src: require("../../assets/images/ronaldo.jpg"),
     bg: "#efc119ff",
   },
 ];

@@ -95,7 +95,7 @@ export default function Login() {
             {/* Login Button */}
             <TouchableOpacity
               className={`w-full py-4 rounded-xl mt-6 ${
-                loading ? 'bg-blue-300' : 'bg-blue-500'
+                loading ? 'bg-[#06fdab]' : 'bg-[#06fdab]'
               }`}
               onPress={handleLogin}
               disabled={loading}
@@ -113,7 +113,7 @@ export default function Login() {
             <View className="flex-row justify-center mt-6">
               <Text className="text-gray-600">Don't have an account? </Text>
               <TouchableOpacity onPress={goToSignup}>
-                <Text className="text-blue-500 font-semibold">Sign Up</Text>
+                <Text className="text-[#06fdab] font-semibold">Sign Up</Text>
               </TouchableOpacity>
             </View>
           </View>

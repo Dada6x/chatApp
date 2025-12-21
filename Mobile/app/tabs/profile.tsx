@@ -1,258 +1,179 @@
-import React from "react";
-import { View, Text, Image, TouchableOpacity, ScrollView } from "react-native";
+import "../../global.css";
+import {
+  View,
+  Text,
+  Image,
+  ActivityIndicator,
+  TouchableOpacity,
+  Alert,
+} from "react-native";
+import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { authAPI } from "../api";
+import { router } from "expo-router";
 
-const PRIMARY = "#AC97D8";
-const SECONDARY = "#DBFBF1";
+export default function Profile() {
+  const [profileUser, setProfileUser] = useState<any>();
+  const [loading, setLoading] = useState(true);
+  const { user, token, logout } = useAuth();
 
-const ProfilePage = () => {
-  const { user: authUser } = useAuth();
+  const PRIMARY = "#AC97D8";
+  const SECONDARY = "#DBFBF1";
 
-  const name = authUser?.name || "Your Name";
-  const email = authUser?.email || "you@example.com";
-  const role = authUser?.role || "Member";
-  const createdAt = authUser?.createdAt
-    ? new Date(authUser.createdAt).toLocaleDateString()
-    : null;
+  useEffect(() => {
+    const fetchMe = async () => {
+      if (!token) {
+        setLoading(false);
+        return;
+      }
 
-  const firstLetter = name?.[0]?.toUpperCase() || "?";
+      try {
+        const result = await authAPI.getMe(token);
+        if (result.success) {
+          setProfileUser(result.data?.user);
+        } else {
+          console.log("Profile error:", result.error);
+          if (
+            result.error.includes("token") ||
+            result.error.includes("unauthorized")
+          ) {
+            await logout();
+            router.replace("/(auth)/login" as any);
+          }
+        }
+      } catch (err) {
+        console.log("Profile error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMe();
+  }, [token]);
+
+  if (loading) {
+    return (
+      <View
+        className="flex-1 items-center justify-center"
+        style={{ backgroundColor: SECONDARY }}
+      >
+        <ActivityIndicator color={PRIMARY} />
+        <Text className="mt-3 text-gray-600">Loading profile...</Text>
+      </View>
+    );
+  }
+
+  const handleLogout = () => {
+    Alert.alert("Logout", "Are you sure you want to logout?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Logout",
+        style: "destructive",
+        onPress: async () => {
+          await logout();
+          router.replace("/(auth)/login" as any);
+        },
+      },
+    ]);
+  };
+
+  const displayUser = user || profileUser;
+
+  if (!displayUser) {
+    return (
+      <View className="flex-1 items-center justify-center bg-white">
+        <Text className="text-lg text-red-500">Failed to load profile.</Text>
+      </View>
+    );
+  }
+
+  const joinedDate = displayUser.createdAt
+    ? new Date(displayUser.createdAt).toLocaleDateString()
+    : "11/26/2025";
 
   return (
-    <View className="flex-1" style={{ backgroundColor: "#F5F3FF" }}>
-      {/* Top header */}
+    <View className="flex-1 px-6 pt-16" style={{ backgroundColor: SECONDARY }}>
+      {/* Avatar Section */}
+      <View className="items-center mb-8">
+        <View
+          className="w-40 h-40 rounded-full overflow-hidden shadow-xl"
+          style={{
+            borderWidth: 4,
+            borderColor: PRIMARY,
+            backgroundColor: "#F1F1F1",
+          }}
+        >
+          <Image
+            source={require("../../assets/images/ronaldo.jpg")}
+            style={{ width: "100%", height: "100%" }}
+            resizeMode="cover"
+          />
+        </View>
+
+        <Text className="text-3xl mt-5 font-semibold" style={{ color: "#333" }}>
+          {displayUser.name}
+        </Text>
+
+        <Text className="text-gray-600">{displayUser.email}</Text>
+
+        <View
+          className="mt-3 px-4 py-1 rounded-full"
+          style={{
+            backgroundColor: PRIMARY + "20",
+            borderColor: PRIMARY,
+            borderWidth: 1,
+          }}
+        >
+          <Text
+            className="text-xs font-medium capitalize"
+            style={{ color: PRIMARY }}
+          >
+            {displayUser.role}
+          </Text>
+        </View>
+      </View>
+
+      {/* Info Section */}
       <View
-        className="px-5 pt-12 pb-4"
+        className="rounded-2xl p-6 mb-8"
         style={{
-          backgroundColor: SECONDARY,
-          borderBottomLeftRadius: 24,
-          borderBottomRightRadius: 24,
-          shadowColor: "#000",
-          shadowOpacity: 0.08,
-          shadowRadius: 8,
-          elevation: 4,
+          backgroundColor: "#fff",
+          borderColor: PRIMARY + "50",
+          borderWidth: 1,
+          shadowColor: PRIMARY,
+          shadowOpacity: 0.1,
+          shadowRadius: 6,
         }}
       >
-        <Text className="text-xs font-semibold tracking-[2px] text-gray-600">
-          PROFILE
-        </Text>
-        <Text className="text-2xl font-bold text-gray-900 mt-1">
-          Hello, {name.split(" ")[0] || "there"} 👋
-        </Text>
-        <Text className="text-xs text-gray-600 mt-1">
-          Manage your account, identity and preferences.
+        <Text className="text-gray-500 text-sm">Joined</Text>
+        <Text className="text-lg font-semibold text-gray-800 mt-1">
+          {joinedDate}
         </Text>
       </View>
 
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
-      >
-        {/* Main profile card */}
-        <View
-          className="items-center px-5 pt-6 pb-5 mb-4"
-          style={{
-            borderRadius: 24,
-            backgroundColor: "#FFFFFF",
-            shadowColor: "#000",
-            shadowOpacity: 0.05,
-            shadowRadius: 8,
-            elevation: 4,
-          }}
+      {/* Buttons */}
+      <View className="mt-2">
+        {/* Edit Profile */}
+        <TouchableOpacity
+          className="w-full py-3 rounded-xl mb-4"
+          style={{ backgroundColor: PRIMARY }}
         >
-          {/* Avatar */}
-          <View
-            className="w-24 h-24 rounded-full overflow-hidden items-center justify-center mb-3"
-            style={{ backgroundColor: "#F0E9FF" }}
-          >
-            {authUser?.avatar ? (
-              <Image
-                source={{ uri: authUser.avatar }}
-                className="w-24 h-24"
-                resizeMode="cover"
-              />
-            ) : (
-              <Text
-                className="text-3xl font-bold"
-                style={{ color: PRIMARY }}
-              >
-                {firstLetter}
-              </Text>
-            )}
-          </View>
-
-          {/* Name + role */}
-          <Text className="text-xl font-semibold text-gray-900">
-            {name}
+          <Text className="text-center text-white text-lg font-semibold">
+            Edit Profile
           </Text>
-          <Text className="text-xs text-gray-500 mt-1">{role}</Text>
+        </TouchableOpacity>
 
-          {/* Tag pill */}
-          {createdAt && (
-            <View
-              className="mt-3 px-3 py-1 rounded-full"
-              style={{ backgroundColor: "#F7F2FF" }}
-            >
-              <Text
-                className="text-[11px] font-medium"
-                style={{ color: PRIMARY }}
-              >
-                Member since {createdAt}
-              </Text>
-            </View>
-          )}
-
-          {/* Edit profile button */}
-          <TouchableOpacity
-            className="mt-4 px-5 py-2 rounded-full"
-            style={{ backgroundColor: PRIMARY }}
-            onPress={() => {
-              // TODO: navigate to edit profile screen
-            }}
-          >
-            <Text className="text-white text-sm font-semibold">
-              Edit Profile
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Info cards */}
-        <View className="gap-y-3">
-          {/* Contact card */}
-          <View
-            className="px-4 py-4"
-            style={{
-              borderRadius: 18,
-              backgroundColor: "#FFFFFF",
-              shadowColor: "#000",
-              shadowOpacity: 0.03,
-              shadowRadius: 6,
-              elevation: 2,
-            }}
-          >
-            <Text className="text-xs font-semibold text-gray-500 mb-2">
-              CONTACT
-            </Text>
-
-            <View className="mb-2">
-              <Text className="text-[11px] text-gray-400">Email</Text>
-              <Text className="text-sm text-gray-800" numberOfLines={1}>
-                {email}
-              </Text>
-            </View>
-
-            <View>
-              <Text className="text-[11px] text-gray-400">Role</Text>
-              <Text className="text-sm text-gray-800">{role}</Text>
-            </View>
-          </View>
-
-          {/* Activity / stats card (dummy numbers for now) */}
-          <View
-            className="px-4 py-4"
-            style={{
-              borderRadius: 18,
-              backgroundColor: "#FFFFFF",
-              shadowColor: "#000",
-              shadowOpacity: 0.03,
-              shadowRadius: 6,
-              elevation: 2,
-            }}
-          >
-            <Text className="text-xs font-semibold text-gray-500 mb-3">
-              ACTIVITY
-            </Text>
-
-            <View className="flex-row justify-between">
-              <View className="items-center flex-1">
-                <Text
-                  className="text-lg font-bold mb-0.5"
-                  style={{ color: PRIMARY }}
-                >
-                  12
-                </Text>
-                <Text className="text-[11px] text-gray-500">
-                  Conversations
-                </Text>
-              </View>
-              <View className="items-center flex-1">
-                <Text
-                  className="text-lg font-bold mb-0.5"
-                  style={{ color: PRIMARY }}
-                >
-                  87
-                </Text>
-                <Text className="text-[11px] text-gray-500">
-                  Messages
-                </Text>
-              </View>
-              <View className="items-center flex-1">
-                <Text
-                  className="text-lg font-bold mb-0.5"
-                  style={{ color: PRIMARY }}
-                >
-                  3
-                </Text>
-                <Text className="text-[11px] text-gray-500">
-                  Calls
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Settings / actions card */}
-          <View
-            className="px-4 py-4 mt-2"
-            style={{
-              borderRadius: 18,
-              backgroundColor: "#FFFFFF",
-              shadowColor: "#000",
-              shadowOpacity: 0.03,
-              shadowRadius: 6,
-              elevation: 2,
-            }}
-          >
-            <Text className="text-xs font-semibold text-gray-500 mb-3">
-              SETTINGS
-            </Text>
-
-            <TouchableOpacity
-              className="py-3 flex-row items-center justify-between"
-              onPress={() => {
-                // TODO: navigate to notification settings
-              }}
-            >
-              <Text className="text-sm text-gray-800">Notifications</Text>
-              <Text
-                className="text-xs"
-                style={{ color: PRIMARY }}
-              >
-                ON
-              </Text>
-            </TouchableOpacity>
-
-            <View
-              style={{
-                height: 1,
-                backgroundColor: "#EFEAFE",
-                marginVertical: 2,
-              }}
-            />
-
-  
-
-            <TouchableOpacity
-              className="py-3 flex-row items-center justify-between"
-              onPress={() => {
-                // TODO: hook into your logout logic
-              }}
-            >
-              <Text className="text-sm text-red-500">Log out</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </ScrollView>
+        {/* Logout */}
+        <TouchableOpacity
+          className="w-full py-3 rounded-xl border"
+          style={{ borderColor: "#DC2626" }}
+          onPress={handleLogout}
+        >
+          <Text className="text-center text-red-500 text-lg font-semibold">
+            Logout
+          </Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
-};
-
-export default ProfilePage;
+}
